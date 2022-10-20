@@ -1,0 +1,169 @@
+---
+title: "Directed Studies - Assignment1"
+author: "Taruque Mahmud - T00685251"
+date: "9/26/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+In this work, I have taken the dataset for breast cancer detection to develop a model of logistic regression and calculated the glm and mle. For this exploration, I have taken one variable which is the radius_mean as the dependent variable and the diagnosis as independent variable.
+
+I have used optimx package to estimate the parameters for this dataset using Maximum Likelihood method.
+
+
+#Loading packages and dataset
+
+```{r}
+require(optimx)
+
+setwd("C:/All Files/TRU Study/2. Directed Studies/A1/")
+data <- read.csv("data.csv")
+
+
+class(data)
+df <- as.data.frame(data)
+
+```
+
+Here, In this dataset, the variables are as below: 
+diagnosis: M = malignant, B = benign
+radius: distances from center to points on the perimeter
+
+
+Now converting the diagnosis values to binary.
+
+```{r}
+df$diagnosis_n <- ifelse(df$diagnosis == "M", 1, 0)
+```
+
+Generalized linear model
+
+```{r}
+
+modelcp<- glm(df$diagnosis_n~df$radius_mean,family=binomial)
+(result<-summary(modelcp))
+
+plot(modelcp)
+
+```
+
+optim function MLE
+
+```{r}
+
+f1<-function(para){
+  eta<-para[1]+para[2]*df$radius_mean
+  p<-1/(1+exp(-eta))
+  -sum(log(choose(1,df$diagnosis_n))+df$diagnosis_n*log(p)+(1-df$diagnosis_n)*log(1-p),na.rm=TRUE)
+}
+f2<-(optim1<-optim(c(1,1),fn=f1,hessian=TRUE))
+f2
+```
+Plotting the functions
+
+```{r}
+#plot optim
+plot(df$radius_mean,                           
+     df$diagnosis_n,
+     main = "optim Function")
+
+#plot glm
+plot(df$radius_mean,                           
+     df$diagnosis_n,
+     main = "glm Function")
+
+```
+
+newton-raphson method(NRM):
+
+Equation:
+
+```{r}
+
+X = model.matrix(modelcp)
+y = modelcp$y
+
+```
+
+Creating function for the Newton Raphson method
+
+```{r}
+newton <- function(
+  X,
+  y,
+  tol  = 1e-12,
+  iter = 100,
+  stepsize = .5
+) {
+
+  int     = log(mean(y) / (1 - mean(y)))         # intercept
+  beta    = c(int, rep(0, ncol(X) - 1))
+  currtol = 1
+  it = 0
+  ll = 0
+  
+  while (currtol > tol && it < iter) {
+    it = it +1
+    ll_old = ll
+    
+    mu = plogis(X %*% beta)[,1]
+    g  = crossprod(X, mu-y)               # gradient
+    S  = diag(mu*(1-mu)) 
+    H  = t(X) %*% S %*% X                 # hessian
+    beta = beta - stepsize * solve(H) %*% g
+    
+    ll = sum(dbinom(y, prob = mu, size = 1, log = TRUE))
+    currtol = abs(ll - ll_old)
+  }
+  
+  list(
+    beta = beta,
+    iter = it,
+    tol  = currtol,
+    loglik = ll
+  )
+}
+
+
+```
+
+NRM results:
+
+```{r}
+newton_result = newton(
+  X = X,
+  y = y,
+  stepsize = .9,
+  tol = 1e-8
+) 
+
+```
+
+Comparing the results with glm and newton raphson method
+
+```{r}
+rbind(
+  newton = unlist(newton_result),
+  glm_default = c(
+    beta = coef(modelcp),
+    modelcp$iter,
+    tol = NA,
+    loglik = -logLik(modelcp)
+  ),
+  mle = c( 
+    beta = f2$par,
+    f2$iter,
+    tol = NA)
+)
+```
+
+The resutl looks similar after 10 iteration in NRM.
+
+
+
+
